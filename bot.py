@@ -1,40 +1,17 @@
 import telebot
 from config import TOKEN
-from config import PGSQL_DATABASE
-from config import PGSQL_HOST
-from config import PGSQL_PORT
-from config import PGSQL_PASSWORD
-from config import PGSQL_USER
 from payout import payout
 from platforms import platforms
+from api import getUser, updateUsers
+from state import State
 
-from psycopg2 import OperationalError
-import psycopg2
-def create_connection(db_name, db_user, db_password, db_host, db_port):
-    connection = None
-    try:
-        connection = psycopg2.connect(
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            host=db_host,
-            port=db_port,
-        )
-        print("Connection to PostgreSQL DB successful")
-    except OperationalError as e:
-        print(f"The error '{e}' occurred")
-    return connection
 bot = telebot.TeleBot(token=TOKEN, parse_mode=None)
 
-is_order = 0
-conn = create_connection(PGSQL_DATABASE, PGSQL_USER, PGSQL_PASSWORD, PGSQL_HOST, PGSQL_PORT)
-cursor = conn.cursor()
-
 def create_main_page(username, id, balance): 
-    return (f'{username} \n 
-                id: {id} \n 
-                Баланс: {balance}')
-
+    return (f'{username} 
+            \nid: {id} 
+            \nБаланс: {balance}')
+state = State()
 def create_main_keyboard(chat_id, message): 
     keyboard = telebot.types.ReplyKeyboardMarkup(row_width=2)
     find_offer = telebot.types.KeyboardButton(text="Найти заказ")
@@ -55,7 +32,7 @@ def create_order_keyboard(chat_id, message):
 
 def create_payout_keyboard(chat_id, message): 
     keyboard = telebot.types.ReplyKeyboardMarkup(row_width=2)
-    for i in payout: 
+    for i in payout:    
         keyboard.add(telebot.types.KeyboardButton(text=i))
     mainMenu = telebot.types.KeyboardButton(text="Главное меню")
     keyboard.add(mainMenu)
@@ -71,14 +48,10 @@ def create_platforms_keyboard(chat_id, message):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    cursor.execute(f"SELECT * FROM users WHERE user_id={message.from_user.id}")
-    user = cursor.fetchall()
-    if (user == 0):
-        postgres_insert_query = """ INSERT INTO users (user_name, user_id, balance)
-                                        VALUES (%s,%s,%s)"""
-        record_to_insert = (message.from_user.username, message.from_user.id, 0)
-        cursor.execute(postgres_insert_query, record_to_insert)    
-        conn.commit()
+    user = getUser(message)
+    print(user)
+    if (len(user) == 0):
+        updateUsers(message)
         create_main_keyboard(chat_id = message.chat.id, message = 'Здесь будет инструкция')
     else:
         create_main_keyboard(chat_id = message.chat.id, message = create_main_page(user[0][1], user[0][2], user[0][0]))
@@ -87,16 +60,16 @@ def help(message):
 
 @bot.message_handler(func=lambda message: message.text=='Найти заказ')
 def find_orders(message): 
+    state.setOrder(True)
     create_platforms_keyboard(chat_id = message.chat.id, message = 'Выберите платформу')
 @bot.message_handler(content_types=['text'])
 def find_order(message): 
-    print(is_order)
-    cursor.execute(f"SELECT * FROM orderd WHERE platform={message.text}")
-    orders = cursor.fetchall()
-    if (orders):
-        cursor.execute(f"SELECT * FROM orderd WHERE platform={message.text} AND location='Location'")
-        orders = cursor.fetchall()
-    if(is_order == 1):
+    # cursor.execute(f"SELECT * FROM orderd WHERE platform={message.text}")
+    # orders = cursor.fetchall()
+    # if (orders):
+    #     cursor.execute(f"SELECT * FROM orderd WHERE platform={message.text} AND location='Location'")
+    #     orders = cursor.fetchall()
+    if(state.getState()['in_order']):
         match(message.text):
             case 'Яндекс':
                 bot.reply_to(message, text='Яндекс')
