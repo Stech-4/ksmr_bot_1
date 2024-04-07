@@ -2,15 +2,13 @@ import telebot
 from config import TOKEN
 from payout import payout
 from platforms import platforms
-from api import getUser, updateUsers
+# from api import getUser, updateUsers
 from state import State
 
 bot = telebot.TeleBot(token=TOKEN, parse_mode=None)
 
 def create_main_page(username, id, balance): 
-    return (f'{username} 
-            \nid: {id} 
-            \nБаланс: {balance}')
+    return (f'{username} \nid: {id} \nБаланс: {balance}')
 state = State()
 def create_main_keyboard(chat_id, message): 
     keyboard = telebot.types.ReplyKeyboardMarkup(row_width=2)
@@ -46,24 +44,36 @@ def create_platforms_keyboard(chat_id, message):
     keyboard.add(mainMenu)
     bot.send_message(chat_id=chat_id, text=message, reply_markup=keyboard)
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    user = getUser(message)
-    print(user)
-    if (len(user) == 0):
-        updateUsers(message)
+@bot.message_handler(commands=['start','admin'])
+def text(message):
+    if(message.text=='/start'):
         create_main_keyboard(chat_id = message.chat.id, message = 'Здесь будет инструкция')
-    else:
-        create_main_keyboard(chat_id = message.chat.id, message = create_main_page(user[0][1], user[0][2], user[0][0]))
+    elif(message.text=='/admin'):
+        create_main_keyboard(chat_id = message.chat.id, message = 'Админка,отправьте любой символ')
+        state.resetState()
+        state.setAdmin(True)
+        
+    # user = getUser(message)
+    # print(user)
+    # if (len(user) == 0):
+    #     updateUsers(message)
+    #     create_main_keyboard(chat_id = message.chat.id, message = 'Здесь будет инструкция')
+    # else:
+    #     create_main_keyboard(chat_id = message.chat.id, message = create_main_page(user[0][1], user[0][2], user[0][0]))
 def help(message):
     bot.reply_to(message, text='Здесь будет помощь')
-
 @bot.message_handler(func=lambda message: message.text=='Найти заказ')
 def find_orders(message): 
     state.setOrder(True)
     create_platforms_keyboard(chat_id = message.chat.id, message = 'Выберите платформу')
 @bot.message_handler(content_types=['text'])
 def find_order(message): 
+    if(state.getState()['in_admin']):
+       create_order_keyboard(chat_id = message.chat.id, message = 'Введите количество')
+       bot.get_me(message.chat.id,message.text)
+       print(message.text)
+        # bot.send_message(message.chat.id,message.text)
+       
     # cursor.execute(f"SELECT * FROM orderd WHERE platform={message.text}")
     # orders = cursor.fetchall()
     # if (orders):
@@ -79,7 +89,7 @@ def find_order(message):
                 bot.reply_to(message, text='Авито')
             case 'Прочее':
                 bot.reply_to(message, text='Прочее')
-    create_order_keyboard(chat_id = message.chat.id, message = 'Здесь будет заказ какой-то')
+        create_order_keyboard(chat_id = message.chat.id, message = 'Здесь будет заказ какой-то')
 @bot.message_handler(func=lambda message: message.text=='Вывод')
 def payout_f(message): 
     create_payout_keyboard(chat_id = message.chat.id, message = 'Выберите способ выплаты')
@@ -89,3 +99,6 @@ def main_menu(message):
 
 
 bot.infinity_polling()
+
+
+    
